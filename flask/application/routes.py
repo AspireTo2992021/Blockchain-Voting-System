@@ -67,3 +67,11 @@ def decqr():
 def decoded():
     global decoded_info
     return render_template("decoded.html", data=decoded_info)
+
+@app.route("/vote")
+def vote():
+    return render_template("vote.html")
+
+@app.route("/not_eligible")
+def not_eligible():
+    return render_template("not_eligible.html")
