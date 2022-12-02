@@ -21,17 +21,120 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.transactions = []
-        self.create_block(proof = 1, previous_hash = '0')
+        #self.create_block(proof = 1, previous_hash = '0')
         self.nodes = set()
+        
+        f = open("store_chain.txt", "r")
+        #note that file should not be empty, it should atleast contain []
+        l=[]
+        try :
+         l = eval(f.read())
+        except SyntaxError:
+            print("file should not be empty, it should atleast contain []")
+        except :
+            print("something else went wrong")
+        
+        if len(l)==0:
+                
+                print("\n Creating Blockchain")
+                self.create_block(proof = 1, previous_hash = '0')
+                print(self.chain)
+                
+        else:
+                print("******************\n \n \n")
+                print("\n Appending Existing Blockchain\n")
+                print(l)
+                self.chain=l
+                print("\n Chain: \n")
+                print(self.chain)
+       
+
+
+    def add_transaction(self, sender, receiver, amount):
+        self.transactions.append({'sender': sender,
+                                  'receiver': receiver,
+                                  'amount': amount})
+        previous_block = self.get_previous_block()
+        return previous_block['index'] + 1
+    
+
+    def last_balance(self,account_id,is_receiver)->int:
+        
+        #if account is present in list return that account balance
+        # else return 1
+        
+        chain = self.chain
+        for block in chain[-1:]:
+            transactions = block["transactions"]
+
+            for t in transactions:
+
+                if(t["input"][0]["receiver"]==account_id):
+                    return t["input"][0]["amount"]
+                elif (t["input"][1]["sender"]==account_id):
+                    return t["input"][1]["amount"]
+                
+        if(is_receiver):
+            return 0
+        else :
+            return 1
+
+    def make_double_entry_book(self,transactions):
+        #transaction[{}]
+        """
+        new_transaction[
+            {
+                "output":output_list[{"sender":t["sender"],"amount":t["amount"]}],
+                "input" : input_list[{"receiver": t["receiver"],"amount":last_balance()+1},
+                {"sender":t["sender"] , "amount": last_balance()-1}]
+                
+                }
+                ]
+        
+        """
+        main_list = list()
+        #main_list=[[{"key" : {"name":"","amount":"" }}]]
+        #new_transacton =[{"key" : {"name":"","amount":"" }}]
+        output_list=list()
+        input_list=list()
+        new_transaction=[]
+        for t in transactions:
+            
+            book_entry =dict()
+            receiver_current_balance = self.last_balance(t["receiver"],True)
+            sender_current_balance = self.last_balance(t["sender"],False)
+
+            if(sender_current_balance < 1 ):
+                continue
+            #output 
+            output_list.append({"sender":t["sender"] , "current_balance": sender_current_balance})
+
+            #input
+            
+            input_list.append({"receiver": t["receiver"],"amount":receiver_current_balance+1})
+            input_list.append({"sender":t["sender"] , "amount":sender_current_balance-1})
+
+            #Transaction
+            book_entry["output"]=output_list
+            book_entry["input"] = input_list
+
+            #appending transaction 
+            new_transaction.append(book_entry)
+
+        return new_transaction
+
     
     def create_block(self, proof, previous_hash):
+        
         block = {'index': len(self.chain) + 1,
                  'timestamp': str(datetime.datetime.now()),
                  'proof': proof,
                  'previous_hash': previous_hash,
-                 'transactions': self.transactions}
+                 'transactions': self.make_double_entry_book(self.transactions)}
         self.transactions = []
         self.chain.append(block)
+        self.storing_chain()
+        
         return block
 
     def get_previous_block(self):
@@ -67,14 +170,7 @@ class Blockchain:
             previous_block = block
             block_index += 1
         return True
-    
-    def add_transaction(self, sender, receiver, amount):
-        self.transactions.append({'sender': sender,
-                                  'receiver': receiver,
-                                  'amount': amount})
-        previous_block = self.get_previous_block()
-        return previous_block['index'] + 1
-    
+ 
     def add_node(self, address):
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
@@ -93,17 +189,59 @@ class Blockchain:
                     longest_chain = chain
         if longest_chain:
             self.chain = longest_chain
+            self.storing_chain()
             return True
         return False
+
+    def storing_chain(self):
+        print("Writing in File \n")
+        print(str(self.chain))
+        f = open("store_chain.txt", "w")
+        f.write(str(self.chain))
+        f.close()
+
+
+
+"""
+Testing Part1
+Double book-keeping check 
+File operations Checked
+
+"""
+
+
+#open and read the file after the appending:
+# file writing in check_chain and in create_block function
+
+
+b=Blockchain()
+def test(sender, receiver, amount):
+    print(b.chain,len(b.chain))
+    previous_block = b.get_previous_block()
+    previous_proof = previous_block['proof']
+    proof = b.proof_of_work(previous_proof)
+    previous_hash = b.hash(previous_block)
+    b.add_transaction(sender, receiver, amount)
+    block = b.create_block(proof, previous_hash)
+    #print("\n Block:\n ")
+    #print(b.chain)
+
+test("a","b",1)
+test("a","b",1)
+test("b","a",1)
+test("c","a",1)
+print("******************\n \n \n")
+print(b.chain)
+ 
 
 # Part 2 - Mining our Blockchain
 
 # Creating a Web App
 app = Flask(__name__)
 
-# Creating an address for the node on Port 5002
+# Creating an address for the node on Port 5000
 node_address = str(uuid4()).replace('-', '')
-
+#print(node_address)
 # Creating a Blockchain
 blockchain = Blockchain()
 
@@ -114,7 +252,7 @@ def mine_block():
     previous_proof = previous_block['proof']
     proof = blockchain.proof_of_work(previous_proof)
     previous_hash = blockchain.hash(previous_block)
-    blockchain.add_transaction(sender = node_address, receiver = 'Kirill', amount = 1)
+    #blockchain.add_transaction(sender = node_address, receiver = 'trial', amount = 1)
     block = blockchain.create_block(proof, previous_hash)
     response = {'message': 'Congratulations, you just mined a block!',
                 'index': block['index'],
@@ -138,7 +276,7 @@ def is_valid():
     if is_valid:
         response = {'message': 'All good. The Blockchain is valid.'}
     else:
-        response = {'message': 'Houston, we have a problem. The Blockchain is not valid.'}
+        response = {'message': 'The Blockchain is not valid.'}
     return jsonify(response), 200
 
 # Adding a new transaction to the Blockchain
@@ -163,7 +301,7 @@ def connect_node():
         return "No node", 400
     for node in nodes:
         blockchain.add_node(node)
-    response = {'message': 'All the nodes are now connected. The Hadcoin Blockchain now contains the following nodes:',
+    response = {'message': 'All the nodes are now connected. The  Blockchain now contains the following nodes:',
                 'total_nodes': list(blockchain.nodes)}
     return jsonify(response), 201
 
@@ -179,5 +317,20 @@ def replace_chain():
                     'actual_chain': blockchain.chain}
     return jsonify(response), 200
 
+
+@app.route('/vote_count',methods=['GET'])
+def balance():
+    json = request.get_json()
+    l = ["address"]
+    if not all(key in json for key in l) :
+        return 'Some elements of the request are missing', 400
+    bal = blockchain.last_balance(json["address"],True)
+    response = {"amount": bal}
+    return jsonify(response),200
+
+
 # Running the app
-app.run(host = '0.0.0.0', port = 5002)
+if __name__ == '__main__':
+    app.debug = True
+    app.run(port=5004)
+#app.run(host = '0.0.0.0', port = 5000)

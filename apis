@@ -1,0 +1,12 @@
+GET : http://127.0.0.1:5001/get_chain
+
+POST : http://127.0.0.1:5001/connect_node
+
+Body 
+=> Raw :
+
+{
+    "nodes": [
+             "http://192.168.0.126:5002",
+             "http://192.168.0.126:5003"]
+}
